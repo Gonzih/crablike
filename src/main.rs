@@ -102,7 +102,10 @@ fn handle_keys(tcod: &mut Tcod, game: &mut Game) -> bool {
             code: Enter,
             alt: true,
             ..
-        } => return true,
+        } => {
+            let fullscreen = tcod.root.is_fullscreen();
+            tcod.root.set_fullscreen(!fullscreen);
+        },
 
         _ => {}
     }

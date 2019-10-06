@@ -47,6 +47,8 @@ impl Game {
 }
 
 fn main() {
+    println!("Starting Crabline game 🦀");
+
     tcod::system::set_fps(LIMIT_FPS);
 
     let player = Object::new(SCREEN_WIDTH/2, SCREEN_HEIGHT/2, '@', WHITE);

@@ -3,49 +3,46 @@ use tcod::console::*;
 use tcod::input::Key;
 use tcod::input::KeyCode::*;
 
+mod object;
+use object::*;
+
+mod mytcod;
+use mytcod::*;
+
+mod gamemap;
+use gamemap::*;
+
 const SCREEN_WIDTH: i32 = 80;
 const SCREEN_HEIGHT: i32 = 50;
 const LIMIT_FPS: i32 = 20;
 
-struct Tcod {
-    root: Root,
-    con: Offscreen,
+struct Game {
+    map: Map,
+    objects: Vec<Object>,
 }
 
-impl Tcod {
-    pub fn blit(&mut self, width: i32, height: i32) {
-        blit(
-            &self.con,
-            (0, 0),
-            (width, height),
-            &mut self.root,
-            (0, 0),
-            1.0,
-            1.0,
-        );
-    }
-}
+impl Game {
+    fn render_all(&self, tcod: &mut Tcod) {
+        for object in &self.objects {
+            object.draw(&mut tcod.con);
+        }
 
-struct Object {
-    x: i32,
-    y: i32,
-    char: char,
-    color: Color,
-}
-
-impl Object {
-    pub fn new(x: i32, y: i32, char: char, color: Color) -> Self {
-        Object { x, y, char, color }
+        for y in 0..MAP_HEIGHT {
+            for x in 0..MAP_WIDTH {
+                let color = self.map[x as usize][y as usize].color();
+                tcod.con.set_char_background(x, y, color, BackgroundFlag::Set);
+            }
+        }
     }
 
-    pub fn move_by(&mut self, dx: i32, dy: i32) {
-        self.x += dx;
-        self.y += dy;
-    }
+    fn move_player_by(&mut self, x: i32, y: i32) {
+        let player = &mut self.objects[0];
+        let nx = player.x + x;
+        let ny = player.y + y;
 
-    pub fn draw(&self, con: &mut dyn Console) {
-        con.set_default_foreground(self.color);
-        con.put_char(self.x, self.y, self.char, BackgroundFlag::None);
+        if !self.map[nx as usize][ny as usize].blocked {
+            player.move_by(x, y);
+        }
     }
 }
 
@@ -55,9 +52,12 @@ fn main() {
     let player = Object::new(SCREEN_WIDTH/2, SCREEN_HEIGHT/2, '@', WHITE);
     let npc = Object::new(SCREEN_WIDTH/2 -5 , SCREEN_HEIGHT/2, '$', WHITE);
 
-    let mut objects = [player, npc];
+    let mut game = Game{
+        map: make_map(),
+        objects: vec![player, npc],
+    };
 
-    let con = Offscreen::new(SCREEN_WIDTH, SCREEN_HEIGHT);
+    let con = Offscreen::new(MAP_WIDTH, MAP_HEIGHT);
 
     let root = Root::initializer()
         .font("arial10x10.png", FontLayout::Tcod)
@@ -74,30 +74,27 @@ fn main() {
     while !tcod.root.window_closed() {
         tcod.con.clear();
 
-        for object in &objects {
-            object.draw(&mut tcod.con);
-        }
+        game.render_all(&mut tcod);
 
         tcod.blit(SCREEN_WIDTH, SCREEN_HEIGHT);
 
         tcod.root.flush();
 
-        let player = &mut objects[0];
-        let exit = handle_keys(&mut tcod, player);
+        let exit = handle_keys(&mut tcod, &mut game);
         if exit {
             break;
         }
     }
 }
 
-fn handle_keys(tcod: &mut Tcod, player: &mut Object) -> bool {
+fn handle_keys(tcod: &mut Tcod, game: &mut Game) -> bool {
     let key = tcod.root.wait_for_keypress(true);
 
     match key {
-        Key { code: Up, .. } => player.move_by(0, -1),
-        Key { code: Down, .. } => player.move_by(0, 1),
-        Key { code: Left, .. } => player.move_by(-1, 0),
-        Key { code: Right, .. } => player.move_by(1, 0),
+        Key { code: Up, .. } => game.move_player_by(0, -1),
+        Key { code: Down, .. } => game.move_player_by(0, 1),
+        Key { code: Left, .. } => game.move_player_by(-1, 0),
+        Key { code: Right, .. } => game.move_player_by(1, 0),
         Key { code: Escape, .. } => return true,
         Key {
             code: Enter,

@@ -18,11 +18,14 @@ const LIMIT_FPS: i32 = 20;
 
 struct Game {
     map: Map,
+    player: Object,
     objects: Vec<Object>,
 }
 
 impl Game {
     fn render_all(&self, tcod: &mut Tcod) {
+        self.player.draw(&mut tcod.con);
+
         for object in &self.objects {
             object.draw(&mut tcod.con);
         }
@@ -36,12 +39,11 @@ impl Game {
     }
 
     fn move_player_by(&mut self, x: i32, y: i32) {
-        let player = &mut self.objects[0];
-        let nx = player.x + x;
-        let ny = player.y + y;
+        let nx = self.player.x + x;
+        let ny = self.player.y + y;
 
         if !self.map[nx as usize][ny as usize].blocked {
-            player.move_by(x, y);
+            self.player.move_by(x, y);
         }
     }
 }
@@ -56,7 +58,8 @@ fn main() {
 
     let mut game = Game{
         map: make_map(),
-        objects: vec![player, npc],
+        player: player,
+        objects: vec![npc],
     };
 
     let con = Offscreen::new(MAP_WIDTH, MAP_HEIGHT);

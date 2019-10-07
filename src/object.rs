@@ -1,7 +1,7 @@
+use super::gamemap::{is_blocked, Map, Rect};
 use rand::Rng;
 use tcod::colors::*;
 use tcod::console::*;
-use super::gamemap::Rect;
 
 const MAX_ROOM_MONSTERS: i32 = 3;
 
@@ -10,11 +10,22 @@ pub struct Object {
     pub y: i32,
     char: char,
     color: Color,
+    pub name: String,
+    pub blocks: bool,
+    pub alive: bool,
 }
 
 impl Object {
-    pub fn new(x: i32, y: i32, char: char, color: Color) -> Self {
-        Object { x, y, char, color }
+    pub fn new(x: i32, y: i32, char: char, name: &str, color: Color, blocks: bool) -> Self {
+        Object {
+            x: x,
+            y: y,
+            char: char,
+            color: color,
+            blocks: blocks,
+            name: name.to_owned(),
+            alive: false,
+        }
     }
 
     pub fn move_by(&mut self, dx: i32, dy: i32) {
@@ -37,20 +48,23 @@ impl Object {
     }
 }
 
-pub fn place_objects(room: &Rect, objects: &mut Vec<Object>) {
+pub fn place_objects(room: &Rect, map: &Map, objects: &mut Vec<Object>) {
     let num_mosters = rand::thread_rng().gen_range(0, MAX_ROOM_MONSTERS + 1);
 
     for _ in 0..num_mosters {
         let x = rand::thread_rng().gen_range(room.x1 + 1, room.x2);
         let y = rand::thread_rng().gen_range(room.y1 + 1, room.y2);
 
-        let monster = if rand::random::<f32>() < 0.8 {
-            //create an orc
-            Object::new(x, y, 'o', DESATURATED_GREEN)
-        } else {
-            Object::new(x, y, 'T', DARKER_GREEN)
-        };
+        if !is_blocked(x, y, map, objects) {
+            let mut monster = if rand::random::<f32>() < 0.8 {
+                //create an orc
+                Object::new(x, y, 'o', "orc", DESATURATED_GREEN, true)
+            } else {
+                Object::new(x, y, 'T', "troll", DARKER_GREEN, true)
+            };
 
-        objects.push(monster);
+            monster.alive = true;
+            objects.push(monster);
+        }
     }
 }

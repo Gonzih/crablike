@@ -1,7 +1,7 @@
+use super::object::{place_objects, Object};
 use rand::Rng;
 use std::cmp;
 use tcod::colors::*;
-use super::object::{Object,place_objects};
 
 pub const MAP_WIDTH: i32 = 80;
 pub const MAP_HEIGHT: i32 = 45;
@@ -109,7 +109,7 @@ pub fn make_map(objects: &mut Vec<Object>) -> (Map, (i32, i32)) {
                 }
             }
 
-            place_objects(&room, objects);
+            place_objects(&room, &map, objects);
 
             rooms.push(room);
         }
@@ -167,4 +167,14 @@ fn create_v_tunnel(y1: i32, y2: i32, x: i32, map: &mut Map) {
     for y in cmp::min(y1, y2)..(cmp::max(y1, y2) + 1) {
         map[x as usize][y as usize] = Tile::empty();
     }
+}
+
+pub fn is_blocked(x: i32, y: i32, map: &Map, objects: &Vec<Object>) -> bool {
+    if map[x as usize][y as usize].blocked {
+        return true;
+    }
+
+    objects
+        .iter()
+        .any(|object| object.blocks && object.pos() == (x, y))
 }

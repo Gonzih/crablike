@@ -12,11 +12,18 @@ use mytcod::*;
 mod gamemap;
 use gamemap::*;
 
-use tcod::map::{FovAlgorithm, Map as FovMap};
+use tcod::map::Map as FovMap;
 
 const SCREEN_WIDTH: i32 = 80;
 const SCREEN_HEIGHT: i32 = 50;
 const LIMIT_FPS: i32 = 20;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum PlayerAction {
+    TookTurn,
+    DidntTakeTurn,
+    Exit,
+}
 
 pub struct Game {
     pub map: Map,
@@ -49,7 +56,8 @@ impl Game {
 
                 if *explored {
                     let color = self.map[x as usize][y as usize].color(visible);
-                    tcod.con.set_char_background(x, y, color, BackgroundFlag::Set);
+                    tcod.con
+                        .set_char_background(x, y, color, BackgroundFlag::Set);
                 }
             }
         }
@@ -59,9 +67,34 @@ impl Game {
         let nx = self.player.x + x;
         let ny = self.player.y + y;
 
-        if !self.map[nx as usize][ny as usize].blocked {
+        if !self.is_tile_blocked(nx, ny) {
             self.player.move_by(x, y);
         }
+    }
+
+    fn player_move_or_attack(&mut self, x: i32, y: i32) -> PlayerAction {
+        let nx = self.player.x + x;
+        let ny = self.player.y + y;
+
+        let target_id = self.objects.iter().position(|object| object.pos() == (nx, ny));
+
+        match target_id {
+            Some(target_id) => {
+                println!(
+                    "The {} laugh at your puny effort to attack!",
+                    self.objects[target_id].name
+                )
+            }
+            None => {
+                self.move_player_by(x, y);
+            }
+        }
+
+        PlayerAction::TookTurn
+    }
+
+    fn is_tile_blocked(&self, x: i32, y: i32) -> bool {
+        is_blocked(x, y, &self.map, &self.objects)
     }
 }
 
@@ -72,11 +105,12 @@ fn main() {
 
     let mut objects = vec![];
 
-    let (new_map, (player_x, player_y)) =  make_map(&mut objects);
+    let (new_map, (player_x, player_y)) = make_map(&mut objects);
 
-    let player = Object::new(player_x, player_y, '@', WHITE);
+    let mut player = Object::new(player_x, player_y, '@', "player", WHITE, true);
+    player.alive = true;
 
-    let mut game = Game{
+    let mut game = Game {
         map: new_map,
         player: player,
         objects: objects,
@@ -112,22 +146,29 @@ fn main() {
 
         tcod.root.flush();
 
-        let exit = handle_keys(&mut tcod, &mut game);
-        if exit {
-            break;
+        let action = handle_keys(&mut tcod, &mut game);
+
+        match action {
+            PlayerAction::Exit => break,
+            PlayerAction::TookTurn if game.player.alive => {
+                for object in &game.objects {
+                    println!("The {} growls!", object.name);
+                }
+            }
+            _ => {}
         }
     }
 }
 
-fn handle_keys(tcod: &mut Tcod, game: &mut Game) -> bool {
+fn handle_keys(tcod: &mut Tcod, game: &mut Game) -> PlayerAction {
     let key = tcod.root.wait_for_keypress(true);
 
     match key {
-        Key { code: Up, .. } => game.move_player_by(0, -1),
-        Key { code: Down, .. } => game.move_player_by(0, 1),
-        Key { code: Left, .. } => game.move_player_by(-1, 0),
-        Key { code: Right, .. } => game.move_player_by(1, 0),
-        Key { code: Escape, .. } => return true,
+        Key { code: Up, .. } => game.player_move_or_attack(0, -1),
+        Key { code: Down, .. } => game.player_move_or_attack(0, 1),
+        Key { code: Left, .. } => game.player_move_or_attack(-1, 0),
+        Key { code: Right, .. } => game.player_move_or_attack(1, 0),
+        Key { code: Escape, .. } => PlayerAction::Exit,
         Key {
             code: Enter,
             alt: true,
@@ -135,10 +176,9 @@ fn handle_keys(tcod: &mut Tcod, game: &mut Game) -> bool {
         } => {
             let fullscreen = tcod.root.is_fullscreen();
             tcod.root.set_fullscreen(!fullscreen);
-        },
+            PlayerAction::DidntTakeTurn
+        }
 
-        _ => {}
+        _ => PlayerAction::DidntTakeTurn,
     }
-
-    false
 }

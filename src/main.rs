@@ -25,7 +25,7 @@ pub struct Game {
 }
 
 impl Game {
-    fn render_all(&self, tcod: &mut Tcod, fov_recompute: bool) {
+    fn render_all(&mut self, tcod: &mut Tcod, fov_recompute: bool) {
         if fov_recompute {
             tcod.compute_fov(self.player.x, self.player.y);
         }
@@ -41,8 +41,16 @@ impl Game {
         for y in 0..MAP_HEIGHT {
             for x in 0..MAP_WIDTH {
                 let visible = tcod.fov.is_in_fov(x, y);
-                let color = self.map[x as usize][y as usize].color(visible);
-                tcod.con.set_char_background(x, y, color, BackgroundFlag::Set);
+
+                let explored = &mut self.map[x as usize][y as usize].explored;
+                if visible {
+                    *explored = true;
+                }
+
+                if *explored {
+                    let color = self.map[x as usize][y as usize].color(visible);
+                    tcod.con.set_char_background(x, y, color, BackgroundFlag::Set);
+                }
             }
         }
     }

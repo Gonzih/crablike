@@ -4,7 +4,7 @@ use std::cmp;
 use tcod::colors::*;
 
 pub const MAP_WIDTH: i32 = 80;
-pub const MAP_HEIGHT: i32 = 45;
+pub const MAP_HEIGHT: i32 = 43;
 
 const COLOR_DARK_WALL: Color = Color { r: 0, g: 0, b: 100 };
 const COLOR_LIGHT_WALL: Color = Color {
@@ -67,7 +67,7 @@ impl Tile {
 
 pub type Map = Vec<Vec<Tile>>;
 
-pub fn make_map(objects: &mut Vec<Object>) -> (Map, (i32, i32)) {
+pub fn make_map(objects: &mut Vec<Object>) -> Map {
     let mut map = vec![vec![Tile::wall(); MAP_HEIGHT as usize]; MAP_WIDTH as usize];
 
     let mut rooms = vec![];
@@ -115,7 +115,10 @@ pub fn make_map(objects: &mut Vec<Object>) -> (Map, (i32, i32)) {
         }
     }
 
-    (map, (player_x, player_y))
+    objects[0].x = player_x;
+    objects[0].y = player_y;
+
+    map
 }
 
 pub struct Rect {

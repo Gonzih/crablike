@@ -1,6 +1,7 @@
 use rand::Rng;
 use std::cmp;
 use tcod::colors::*;
+use super::object::{Object,place_objects};
 
 pub const MAP_WIDTH: i32 = 80;
 pub const MAP_HEIGHT: i32 = 45;
@@ -66,7 +67,7 @@ impl Tile {
 
 pub type Map = Vec<Vec<Tile>>;
 
-pub fn make_map() -> (Map, (i32, i32)) {
+pub fn make_map(objects: &mut Vec<Object>) -> (Map, (i32, i32)) {
     let mut map = vec![vec![Tile::wall(); MAP_HEIGHT as usize]; MAP_WIDTH as usize];
 
     let mut rooms = vec![];
@@ -108,6 +109,8 @@ pub fn make_map() -> (Map, (i32, i32)) {
                 }
             }
 
+            place_objects(&room, objects);
+
             rooms.push(room);
         }
     }
@@ -116,10 +119,10 @@ pub fn make_map() -> (Map, (i32, i32)) {
 }
 
 pub struct Rect {
-    x1: i32,
-    y1: i32,
-    x2: i32,
-    y2: i32,
+    pub x1: i32,
+    pub y1: i32,
+    pub x2: i32,
+    pub y2: i32,
 }
 
 impl Rect {

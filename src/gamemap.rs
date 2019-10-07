@@ -1,15 +1,26 @@
+use rand::Rng;
 use std::cmp;
 use tcod::colors::*;
-use rand::Rng;
 
 pub const MAP_WIDTH: i32 = 80;
 pub const MAP_HEIGHT: i32 = 45;
 
 const COLOR_DARK_WALL: Color = Color { r: 0, g: 0, b: 100 };
+const COLOR_LIGHT_WALL: Color = Color {
+    r: 130,
+    g: 110,
+    b: 50,
+};
+
 const COLOR_DARK_GROUND: Color = Color {
     r: 50,
     g: 50,
     b: 150,
+};
+const COLOR_LIGHT_GROUND: Color = Color {
+    r: 200,
+    g: 180,
+    b: 50,
 };
 
 const ROOM_MAX_SIZE: i32 = 10;
@@ -37,8 +48,16 @@ impl Tile {
         }
     }
 
-    pub fn color(&self) -> Color {
-        if self.block_sight { COLOR_DARK_WALL } else { COLOR_DARK_GROUND }
+    pub fn color(&self, visible: bool) -> Color {
+        let wall = self.block_sight;
+
+        match (visible, wall) {
+            (false, true) => COLOR_DARK_WALL,
+            (false, false) => COLOR_DARK_GROUND,
+
+            (true, true) => COLOR_LIGHT_WALL,
+            (true, false) => COLOR_LIGHT_GROUND,
+        }
     }
 }
 

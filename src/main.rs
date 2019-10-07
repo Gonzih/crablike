@@ -2,8 +2,6 @@ use std::cmp;
 
 use tcod::colors::*;
 use tcod::console::*;
-use tcod::input::Key;
-use tcod::input::KeyCode::*;
 
 mod object;
 use object::*;
@@ -206,6 +204,9 @@ fn main() {
 }
 
 fn handle_keys(tcod: &mut Tcod, objects: &mut Vec<Object>, game: &mut Game) -> PlayerAction {
+    use tcod::input::Key;
+    use tcod::input::KeyCode::*;
+
     let key = tcod.root.wait_for_keypress(true);
 
     match key {

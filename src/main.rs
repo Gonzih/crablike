@@ -53,13 +53,14 @@ fn main() {
 
     tcod::system::set_fps(LIMIT_FPS);
 
-    let player = Object::new(SCREEN_WIDTH/2, SCREEN_HEIGHT/2-2, '@', WHITE);
-    let npc = Object::new(SCREEN_WIDTH/2 -5 , SCREEN_HEIGHT/2, '$', WHITE);
+    let (new_map, (player_x, player_y)) =  make_map();
+
+    let player = Object::new(player_x, player_y, '@', WHITE);
 
     let mut game = Game{
-        map: make_map(),
+        map: new_map,
         player: player,
-        objects: vec![npc],
+        objects: vec![],
     };
 
     let con = Offscreen::new(MAP_WIDTH, MAP_HEIGHT);

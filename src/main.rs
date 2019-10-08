@@ -25,6 +25,7 @@ enum PlayerAction {
 
 pub struct Game {
     pub map: Map,
+    inventory: Vec<Object>,
     messages: Messages,
 }
 
@@ -107,6 +108,23 @@ impl Game {
     fn is_tile_blocked(&self, objects: &Vec<Object>, x: i32, y: i32) -> bool {
         is_blocked(x, y, &self.map, objects)
     }
+
+    fn pick_item_up(&mut self, object_id: usize, objects: &mut Vec<Object>) {
+        if self.inventory.len() >=  26 {
+            self.messages.add(
+                format!(
+                    "Your inventory is full, cannot pick up {}.",
+                    objects[object_id].name
+                ),
+                RED,
+            )
+        } else {
+            let item = objects.swap_remove(object_id);
+            self.messages.add(format!("You picked up a {}!", item.name), GREEN);
+            self.inventory.push(item);
+        }
+
+    }
 }
 
 fn main() {
@@ -129,6 +147,7 @@ fn main() {
     let mut game = Game {
         map: make_map(&mut objects),
         messages: Messages::new(),
+        inventory: vec![],
     };
 
     game.messages.add(
@@ -209,21 +228,31 @@ fn handle_keys(tcod: &mut Tcod, objects: &mut Vec<Object>, game: &mut Game) -> P
 
     let key = tcod.root.wait_for_keypress(true);
 
-    match key {
-        Key { code: Up, .. } => game.player_move_or_attack(objects, 0, -1),
-        Key { code: Down, .. } => game.player_move_or_attack(objects, 0, 1),
-        Key { code: Left, .. } => game.player_move_or_attack(objects, -1, 0),
-        Key { code: Right, .. } => game.player_move_or_attack(objects, 1, 0),
-        Key { code: Escape, .. } => PlayerAction::Exit,
-        Key {
+    let player_alive = objects[PLAYER].alive;
+    println!("{}", key.text());
+    match (key, key.text(), player_alive) {
+        (Key { code: Up, .. }, _, _) => game.player_move_or_attack(objects, 0, -1),
+        (Key { code: Down, .. }, _, _) => game.player_move_or_attack(objects, 0, 1),
+        (Key { code: Left, .. }, _, _) => game.player_move_or_attack(objects, -1, 0),
+        (Key { code: Right, .. }, _, _) => game.player_move_or_attack(objects, 1, 0),
+        (Key { code: Escape, .. }, _, _) => PlayerAction::Exit,
+        (Key {
             code: Enter,
             alt: true,
             ..
-        } => {
+        }, _, _) => {
             let fullscreen = tcod.root.is_fullscreen();
             tcod.root.set_fullscreen(!fullscreen);
             PlayerAction::DidntTakeTurn
         }
+
+        (Key { code: Text, .. }, "g", true) => {
+            let item_id = objects.iter().position(|object| object.pos() == objects[PLAYER].pos() && object.item.is_some());
+            if let Some(item_id) = item_id {
+                game.pick_item_up(item_id, objects);
+            }
+            PlayerAction::TookTurn
+        },
 
         _ => PlayerAction::DidntTakeTurn,
     }

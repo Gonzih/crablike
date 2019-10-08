@@ -13,8 +13,10 @@ mod gamemap;
 use gamemap::*;
 
 use tcod::map::Map as FovMap;
+use tcod::input::{self, Key, Event};
 
 const PLAYER: usize = 0;
+const HEAL_AMOUNT: i32 = 4;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum PlayerAction {
@@ -170,6 +172,7 @@ fn main() {
         fov: FovMap::new(MAP_WIDTH, MAP_HEIGHT),
         con: con,
         panel: panel,
+        key: Default::default(),
     };
 
     tcod.populate_fov_map(MAP_WIDTH, MAP_HEIGHT, &mut game);
@@ -180,6 +183,11 @@ fn main() {
         tcod.con.clear();
 
         let fov_recompute = previous_player_position != (objects[PLAYER].x, objects[PLAYER].y);
+
+        match input::check_for_event(input::KEY_PRESS) {
+            Some((_, Event::Key(k))) => tcod.key = k,
+            _ => tcod.key = Default::default(),
+        }
 
         game.render_all(&mut tcod, &objects, fov_recompute);
 
@@ -223,19 +231,16 @@ fn main() {
 }
 
 fn handle_keys(tcod: &mut Tcod, objects: &mut Vec<Object>, game: &mut Game) -> PlayerAction {
-    use tcod::input::Key;
     use tcod::input::KeyCode::*;
-
-    let key = tcod.root.wait_for_keypress(true);
+    use PlayerAction::*;
 
     let player_alive = objects[PLAYER].alive;
-    println!("{}", key.text());
-    match (key, key.text(), player_alive) {
+    match (tcod.key, tcod.key.text(), player_alive) {
         (Key { code: Up, .. }, _, _) => game.player_move_or_attack(objects, 0, -1),
         (Key { code: Down, .. }, _, _) => game.player_move_or_attack(objects, 0, 1),
         (Key { code: Left, .. }, _, _) => game.player_move_or_attack(objects, -1, 0),
         (Key { code: Right, .. }, _, _) => game.player_move_or_attack(objects, 1, 0),
-        (Key { code: Escape, .. }, _, _) => PlayerAction::Exit,
+        (Key { code: Escape, .. }, _, _) => Exit,
         (Key {
             code: Enter,
             alt: true,
@@ -243,18 +248,30 @@ fn handle_keys(tcod: &mut Tcod, objects: &mut Vec<Object>, game: &mut Game) -> P
         }, _, _) => {
             let fullscreen = tcod.root.is_fullscreen();
             tcod.root.set_fullscreen(!fullscreen);
-            PlayerAction::DidntTakeTurn
+            DidntTakeTurn
         }
 
         (Key { code: Text, .. }, "g", true) => {
             let item_id = objects.iter().position(|object| object.pos() == objects[PLAYER].pos() && object.item.is_some());
             if let Some(item_id) = item_id {
                 game.pick_item_up(item_id, objects);
-            }
-            PlayerAction::TookTurn
+            };
+            TookTurn
         },
 
-        _ => PlayerAction::DidntTakeTurn,
+        (Key { code: Text, .. }, "i", true) => {
+            let inventory_index = inventory_menu(
+                &game.inventory,
+                "Press the key next an item to use it, or any other to cancel.\n",
+                &mut tcod.root,
+            );
+            if let Some(inventory_index) = inventory_index {
+                use_item(inventory_index, tcod, game, objects);
+            }
+            TookTurn
+        },
+
+        _ => DidntTakeTurn,
     }
 }
 
@@ -283,4 +300,49 @@ fn mut_two<T>(first_index: usize, second_index: usize, items: &mut [T]) -> (&mut
     } else {
         (&mut second_slice[0], &mut first_slice[second_index])
     }
+}
+
+enum UseResult {
+    UsedUp,
+    Cancelled,
+}
+
+fn use_item(inventory_id: usize, tcod: &mut Tcod, game: &mut Game, objects: &mut [Object]) {
+    use Item::*;
+
+    if let Some(item) = game.inventory[inventory_id].item {
+        let on_use = match item {
+            Heal => cast_heal,
+        };
+        match on_use(inventory_id, tcod, game, objects) {
+            UseResult::UsedUp => {game.inventory.remove(inventory_id);}
+            UseResult::Cancelled => {game.messages.add("Cancelled", WHITE);}
+        }
+    } else {
+        game.messages.add(
+            format!("The {} cannot be used.", game.inventory[inventory_id].name),
+            WHITE,
+        )
+    }
+}
+
+fn cast_heal(
+    _inventory_id: usize,
+    _tcod: &mut Tcod,
+    game: &mut Game,
+    objects: &mut [Object],
+) -> UseResult {
+    if let Some(fighter) = objects[PLAYER].fighter {
+        if fighter.hp == fighter.max_hp {
+            game.messages.add("You are alraedy at full health.", RED);
+            return UseResult::Cancelled;
+        }
+
+        game.messages
+            .add("Your wounds are closing!", LIGHT_VIOLET);
+        objects[PLAYER].heal(HEAL_AMOUNT);
+        return UseResult::UsedUp;
+    }
+
+    UseResult::Cancelled
 }

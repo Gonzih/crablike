@@ -90,6 +90,14 @@ impl Object {
             }
         }
     }
+    pub fn heal(&mut self, amount: i32) {
+        if let Some(ref mut fighter) = self.fighter {
+            fighter.hp += amount;
+            if fighter.hp > fighter.max_hp {
+                fighter.hp = fighter.max_hp;
+            }
+        }
+    }
 }
 
 pub fn place_objects(room: &Rect, map: &Map, objects: &mut Vec<Object>) {

@@ -236,10 +236,10 @@ fn handle_keys(tcod: &mut Tcod, objects: &mut Vec<Object>, game: &mut Game) -> P
 
     let player_alive = objects[PLAYER].alive;
     match (tcod.key, tcod.key.text(), player_alive) {
-        (Key { code: Up, .. }, _, _) => game.player_move_or_attack(objects, 0, -1),
-        (Key { code: Down, .. }, _, _) => game.player_move_or_attack(objects, 0, 1),
-        (Key { code: Left, .. }, _, _) => game.player_move_or_attack(objects, -1, 0),
-        (Key { code: Right, .. }, _, _) => game.player_move_or_attack(objects, 1, 0),
+        (Key { code: Up, .. }, _, true) => game.player_move_or_attack(objects, 0, -1),
+        (Key { code: Down, .. }, _, true) => game.player_move_or_attack(objects, 0, 1),
+        (Key { code: Left, .. }, _, true) => game.player_move_or_attack(objects, -1, 0),
+        (Key { code: Right, .. }, _, true) => game.player_move_or_attack(objects, 1, 0),
         (Key { code: Escape, .. }, _, _) => Exit,
         (Key {
             code: Enter,

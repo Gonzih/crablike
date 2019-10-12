@@ -12,11 +12,17 @@ use mytcod::*;
 mod gamemap;
 use gamemap::*;
 
+use tcod::input::{self, Event, Key};
 use tcod::map::Map as FovMap;
-use tcod::input::{self, Key, Event};
+
+use rand::Rng;
 
 const PLAYER: usize = 0;
 const HEAL_AMOUNT: i32 = 4;
+const LIGHTNING_DAMAGE: i32 = 40;
+const LIGHTNING_RANGE: i32 = 5;
+const CONFUSE_RANGE: i32 = 8;
+const CONFUSE_NUM_TURNS: i32 = 10;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum PlayerAction {
@@ -78,11 +84,15 @@ impl Game {
     }
 
     fn move_player_by(&mut self, objects: &mut Vec<Object>, x: i32, y: i32) {
-        let nx = objects[PLAYER].x + x;
-        let ny = objects[PLAYER].y + y;
+        self.move_object_by(PLAYER, objects, x, y);
+    }
+
+    fn move_object_by(&mut self, id: usize, objects: &mut Vec<Object>, x: i32, y: i32) {
+        let nx = objects[id].x + x;
+        let ny = objects[id].y + y;
 
         if !self.is_tile_blocked(objects, nx, ny) {
-            objects[PLAYER].move_by(x, y);
+            objects[id].move_by(x, y);
         }
     }
 
@@ -98,7 +108,7 @@ impl Game {
             Some(target_id) => {
                 let (player, monster) = mut_two(PLAYER, target_id, objects);
                 player.attack(monster, self);
-            },
+            }
             None => {
                 self.move_player_by(objects, x, y);
             }
@@ -112,7 +122,7 @@ impl Game {
     }
 
     fn pick_item_up(&mut self, object_id: usize, objects: &mut Vec<Object>) {
-        if self.inventory.len() >=  26 {
+        if self.inventory.len() >= 26 {
             self.messages.add(
                 format!(
                     "Your inventory is full, cannot pick up {}.",
@@ -122,10 +132,10 @@ impl Game {
             )
         } else {
             let item = objects.swap_remove(object_id);
-            self.messages.add(format!("You picked up a {}!", item.name), GREEN);
+            self.messages
+                .add(format!("You picked up a {}!", item.name), GREEN);
             self.inventory.push(item);
         }
-
     }
 }
 
@@ -152,10 +162,7 @@ fn main() {
         inventory: vec![],
     };
 
-    game.messages.add(
-        "Welcome, prepare to get died!",
-        RED,
-    );
+    game.messages.add("Welcome, prepare to get died!", RED);
 
     let con = Offscreen::new(MAP_WIDTH, MAP_HEIGHT);
     let panel = Offscreen::new(SCREEN_WIDTH, PANEL_HEIGHT);
@@ -197,16 +204,7 @@ fn main() {
         let hp = objects[PLAYER].fighter.map_or(0, |f| f.hp);
         let max_hp = objects[PLAYER].fighter.map_or(0, |f| f.max_hp);
 
-        tcod.render_bar(
-            1,
-            1,
-            BAR_WIDTH,
-            "HP",
-            hp,
-            max_hp,
-            LIGHT_RED,
-            DARKER_RED,
-        );
+        tcod.render_bar(1, 1, BAR_WIDTH, "HP", hp, max_hp, LIGHT_RED, DARKER_RED);
 
         tcod.print_messages(&game.messages);
 
@@ -241,23 +239,29 @@ fn handle_keys(tcod: &mut Tcod, objects: &mut Vec<Object>, game: &mut Game) -> P
         (Key { code: Left, .. }, _, true) => game.player_move_or_attack(objects, -1, 0),
         (Key { code: Right, .. }, _, true) => game.player_move_or_attack(objects, 1, 0),
         (Key { code: Escape, .. }, _, _) => Exit,
-        (Key {
-            code: Enter,
-            alt: true,
-            ..
-        }, _, _) => {
+        (
+            Key {
+                code: Enter,
+                alt: true,
+                ..
+            },
+            _,
+            _,
+        ) => {
             let fullscreen = tcod.root.is_fullscreen();
             tcod.root.set_fullscreen(!fullscreen);
             DidntTakeTurn
         }
 
         (Key { code: Text, .. }, "g", true) => {
-            let item_id = objects.iter().position(|object| object.pos() == objects[PLAYER].pos() && object.item.is_some());
+            let item_id = objects
+                .iter()
+                .position(|object| object.pos() == objects[PLAYER].pos() && object.item.is_some());
             if let Some(item_id) = item_id {
                 game.pick_item_up(item_id, objects);
             };
             TookTurn
-        },
+        }
 
         (Key { code: Text, .. }, "i", true) => {
             let inventory_index = inventory_menu(
@@ -269,13 +273,27 @@ fn handle_keys(tcod: &mut Tcod, objects: &mut Vec<Object>, game: &mut Game) -> P
                 use_item(inventory_index, tcod, game, objects);
             }
             TookTurn
-        },
+        }
 
         _ => DidntTakeTurn,
     }
 }
 
 fn ai_take_turn(monster_id: usize, tcod: &Tcod, objects: &mut Vec<Object>, game: &mut Game) {
+    use Ai::*;
+    if let Some(ai) = objects[monster_id].ai.take() {
+        let new_ai = match ai {
+            Basic => ai_basic(monster_id, tcod, objects, game),
+            Confused {
+                previous_ai,
+                num_turns,
+            } => ai_confused(monster_id, tcod, objects, game, previous_ai, num_turns),
+        };
+        objects[monster_id].ai = Some(new_ai);
+    }
+}
+
+fn ai_basic(monster_id: usize, tcod: &Tcod, objects: &mut Vec<Object>, game: &mut Game) -> Ai {
     let (monster_x, monster_y) = objects[monster_id].pos();
 
     if tcod.fov.is_in_fov(monster_x, monster_y) {
@@ -286,6 +304,37 @@ fn ai_take_turn(monster_id: usize, tcod: &Tcod, objects: &mut Vec<Object>, game:
             let (player, monster) = mut_two(PLAYER, monster_id, objects);
             monster.attack(player, game);
         }
+    }
+
+    Ai::Basic
+}
+
+fn ai_confused(
+    monster_id: usize,
+    _tcod: &Tcod,
+    objects: &mut Vec<Object>,
+    game: &mut Game,
+    previous_ai: Box<Ai>,
+    num_turns: i32,
+) -> Ai {
+    if num_turns >= 0 {
+        game.move_object_by(
+            monster_id,
+            objects,
+            rand::thread_rng().gen_range(-1, 2),
+            rand::thread_rng().gen_range(-1, 2),
+        );
+        Ai::Confused {
+            previous_ai: previous_ai,
+            num_turns: num_turns - 1,
+        }
+    } else {
+        game.messages.add(
+            format!("The {} is no longer confused!", objects[monster_id].name),
+            RED,
+        );
+
+        *previous_ai
     }
 }
 
@@ -313,10 +362,16 @@ fn use_item(inventory_id: usize, tcod: &mut Tcod, game: &mut Game, objects: &mut
     if let Some(item) = game.inventory[inventory_id].item {
         let on_use = match item {
             Heal => cast_heal,
+            Lightning => cast_lightning,
+            Confuse => cast_confuse,
         };
         match on_use(inventory_id, tcod, game, objects) {
-            UseResult::UsedUp => {game.inventory.remove(inventory_id);}
-            UseResult::Cancelled => {game.messages.add("Cancelled", WHITE);}
+            UseResult::UsedUp => {
+                game.inventory.remove(inventory_id);
+            }
+            UseResult::Cancelled => {
+                game.messages.add("Cancelled", WHITE);
+            }
         }
     } else {
         game.messages.add(
@@ -338,11 +393,83 @@ fn cast_heal(
             return UseResult::Cancelled;
         }
 
-        game.messages
-            .add("Your wounds are closing!", LIGHT_VIOLET);
+        game.messages.add("Your wounds are closing!", LIGHT_VIOLET);
         objects[PLAYER].heal(HEAL_AMOUNT);
         return UseResult::UsedUp;
     }
 
     UseResult::Cancelled
+}
+
+fn cast_lightning(
+    _inventory_id: usize,
+    tcod: &mut Tcod,
+    game: &mut Game,
+    objects: &mut [Object],
+) -> UseResult {
+    let monster_id = closest_monster(tcod, objects, LIGHTNING_RANGE);
+    if let Some(monster_id) = monster_id {
+        game.messages.add(
+            format!(
+                "A lightting bolt strikes the {} with a loud thunder! for {} hit points.",
+                objects[monster_id].name, LIGHTNING_DAMAGE,
+            ),
+            LIGHT_BLUE,
+        );
+        objects[monster_id].take_damage(LIGHTNING_DAMAGE, game);
+        UseResult::UsedUp
+    } else {
+        game.messages
+            .add("No enemy is close enough to strike.", RED);
+        UseResult::Cancelled
+    }
+}
+
+fn closest_monster(tcod: &Tcod, objects: &[Object], max_range: i32) -> Option<usize> {
+    let mut closest_enemy = None;
+    let mut closest_dist = (max_range + 1) as f32;
+
+    for (id, object) in objects.iter().enumerate() {
+        if (id != PLAYER)
+            && object.fighter.is_some()
+            && object.ai.is_some()
+            && tcod.fov.is_in_fov(object.x, object.y)
+        {
+            let dist = objects[PLAYER].distance_to(object);
+            if dist < closest_dist {
+                closest_enemy = Some(id);
+                closest_dist = dist;
+            }
+        }
+    }
+
+    closest_enemy
+}
+
+fn cast_confuse(
+    _inventory_id: usize,
+    tcod: &mut Tcod,
+    game: &mut Game,
+    objects: &mut [Object],
+) -> UseResult {
+    let monster_id = closest_monster(tcod, objects, CONFUSE_RANGE);
+    if let Some(monster_id) = monster_id {
+        game.messages.add(
+            format!(
+                "{} looks confused",
+                objects[monster_id].name,
+            ),
+            LIGHT_GREEN,
+        );
+        let old_ai = objects[monster_id].ai.take().unwrap_or(Ai::Basic);
+        objects[monster_id].ai = Some(Ai::Confused {
+            previous_ai: Box::new(old_ai),
+            num_turns: CONFUSE_NUM_TURNS,
+        });
+        UseResult::UsedUp
+    } else {
+        game.messages
+            .add("No enemy is close enough to strike.", RED);
+        UseResult::Cancelled
+    }
 }

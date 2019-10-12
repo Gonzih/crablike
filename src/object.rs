@@ -146,9 +146,22 @@ pub fn place_objects(room: &Rect, map: &Map, objects: &mut Vec<Object>) {
         let y = rand::thread_rng().gen_range(room.y1 + 1, room.y2);
 
         if !is_blocked(x, y, map, objects) {
-            let mut object = Object::new(x, y, '!', "healing potion", VIOLET, false);
-            object.item = Some(Item::Heal);
-            objects.push(object);
+            let dice = rand::random::<f32>();
+            let item = if dice < 0.7 {
+                let mut object = Object::new(x, y, '!', "healing potion", VIOLET, false);
+                object.item = Some(Item::Heal);
+                object
+            } else if dice < 0.7 + 0.1 {
+                let mut object = Object::new(x, y, '#', "scroll of lightning bolt", LIGHT_YELLOW, false);
+                object.item = Some(Item::Lightning);
+                object
+            } else {
+                let mut object = Object::new(x, y, '#', "scroll of confusion", LIGHT_YELLOW, false);
+                object.item = Some(Item::Confuse);
+                object
+            };
+
+            objects.push(item);
         }
     }
 }
@@ -165,6 +178,10 @@ pub struct Fighter {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Ai {
     Basic,
+    Confused {
+        previous_ai: Box<Ai>,
+        num_turns: i32,
+    }
 }
 
 pub fn move_towards(id: usize, target_x: i32, target_y: i32, map: &Map, objects: &mut Vec<Object>) {
@@ -219,4 +236,6 @@ fn monster_death(monster: &mut Object, game: &mut Game) {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Item {
     Heal,
+    Lightning,
+    Confuse,
 }

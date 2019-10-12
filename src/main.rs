@@ -162,7 +162,7 @@ fn main() {
         inventory: vec![],
     };
 
-    game.messages.add("Welcome, prepare to get died!", RED);
+    game.messages.add("Welcome, gl hf!", RED);
 
     let con = Offscreen::new(MAP_WIDTH, MAP_HEIGHT);
     let panel = Offscreen::new(SCREEN_WIDTH, PANEL_HEIGHT);

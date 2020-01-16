@@ -455,10 +455,7 @@ fn cast_confuse(
     let monster_id = closest_monster(tcod, objects, CONFUSE_RANGE);
     if let Some(monster_id) = monster_id {
         game.messages.add(
-            format!(
-                "{} looks confused",
-                objects[monster_id].name,
-            ),
+            format!("{} looks confused", objects[monster_id].name,),
             LIGHT_GREEN,
         );
         let old_ai = objects[monster_id].ai.take().unwrap_or(Ai::Basic);
